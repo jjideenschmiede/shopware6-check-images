@@ -13,16 +13,18 @@ package main
 
 import (
 	"encoding/csv"
+	"encoding/json"
 	"fmt"
 	"github.com/jojojojonas/shopware6-iamge-scraper/scraper"
 	"os"
 	"time"
 )
 
-var (
-	url        = "https://lawudi.de/"
-	categories = []string{"Damenschuhe", "Hausschuhe", "Kinderschuhe", "Herrenschuhe"}
-)
+// Config for starting service
+type Config struct {
+	Url        string   `json:"url"`
+	Categories []string `json:"categories"`
+}
 
 func main() {
 
@@ -35,8 +37,25 @@ func main() {
 	// Save scraper data
 	var data []scraper.Data
 
+	// Open json file
+	config, err := os.Open("config.json")
+	if err != nil {
+		fmt.Println("An error occurred while load config json file: ", err)
+	}
+
+	// Close after function ends
+	defer config.Close()
+
+	// Decode config
+	var decode Config
+
+	err = json.NewDecoder(config).Decode(&decode)
+	if err != nil {
+		fmt.Println("An error occurred while decoding the json data: ", err)
+	}
+
 	// Check each category
-	for _, value := range categories {
+	for _, value := range decode.Categories {
 
 		// Logging category
 		fmt.Println("Start checking " + value)
@@ -52,7 +71,7 @@ func main() {
 			fmt.Printf("Seite: %d\n", number)
 
 			// Define url
-			site := fmt.Sprintf("%s%s/?order=name-desc&p=%d", url, value, number)
+			site := fmt.Sprintf("%s%s/?order=name-desc&p=%d", decode.Url, value, number)
 
 			// Check url
 			images, last := scraper.Site(site)
@@ -85,40 +104,52 @@ func main() {
 
 	}
 
-	// Get date
-	date := time.Now()
+	// Check data length
+	if len(data) > 0 {
 
-	// Create new file
-	file, err := os.Create(fmt.Sprintf("files/images-%s.csv", date.Format("20060102150405")))
-	if err != nil {
-		fmt.Println("An error occurred while creating an file: ", err)
-	}
+		// Get date
+		date := time.Now()
 
-	// Create writer
-	writer := csv.NewWriter(file)
-
-	// Flush writer after function ends
-	defer writer.Flush()
-
-	// Write header
-	err = writer.Write([]string{"MPN", "URL"})
-	if err != nil {
-		fmt.Println("An error occurred while creating an header row in file: ", err)
-	}
-
-	// Write data
-	for _, value := range data {
-
-		// Create new row
-		err = writer.Write([]string{value.Mpn, value.Link})
+		// Create new file
+		file, err := os.Create(fmt.Sprintf("files/images-%s.csv", date.Format("20060102150405")))
 		if err != nil {
-			fmt.Println("An error occurred while creating an row in an file: ", err)
+			fmt.Println("An error occurred while creating an file: ", err)
 		}
 
+		// Create writer
+		writer := csv.NewWriter(file)
+
+		// Flush writer after function ends
+		defer writer.Flush()
+
+		// Write header
+		err = writer.Write([]string{"MPN", "URL"})
+		if err != nil {
+			fmt.Println("An error occurred while creating an header row in file: ", err)
+		}
+
+		// Write data
+		for _, value := range data {
+
+			// Create new row
+			err = writer.Write([]string{value.Mpn, value.Link})
+			if err != nil {
+				fmt.Println("An error occurred while creating an row in an file: ", err)
+			}
+
+		}
+
+		// Logging end category
+		fmt.Printf("Scan finished & file was created with filename: images-%s.csv\n", date.Format("20060102150405"))
+
+	} else {
+
+		// Logging end category
+		fmt.Println("Scan finished. No missing images were found in this scan.")
+
 	}
 
-	// Logging end category
-	fmt.Printf("Scan finished & file was created with filename: images-%s.csv\n", date.Format("20060102150405"))
+	// Print last line for cli
 	fmt.Println("\n\n--------------------------------------------------------------------\n\n\n\n")
 
 }
